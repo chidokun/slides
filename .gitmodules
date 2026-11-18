@@ -1,3 +1,6 @@
 [submodule "slides/motion-graphic-video-slide"]
 	path = slides/motion-graphic-video-slide
 	url = https://github.com/chidokun/motion-graphic-video-slide
+[submodule "slides/slide-perf-lab"]
+	path = slides/slide-perf-lab
+	url = https://github.com/chidokun/slide-perf-lab

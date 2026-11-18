@@ -7,12 +7,13 @@
 //   SLIDES      optional comma-separated list of slide ids to build (default: all)
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SLIDES_DIR = join(ROOT, 'slides')
+const PUBLIC_DIR = join(ROOT, 'public')
 const DIST = join(ROOT, 'dist')
 const SITE_TITLE = process.env.SITE_TITLE || 'Slides'
 
@@ -30,7 +31,7 @@ function log(...a) { console.log('[slides]', ...a) }
 
 function run(cmd, args, cwd) {
   log(`$ ${cmd} ${args.join(' ')}   (in ${cwd.replace(ROOT + '/', '')})`)
-  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env: { ...process.env, CI: process.env.CI || '1' } })
+  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env: { ...process.env, CI: process.env.CI || '1', PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD || '1' } })
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed with exit code ${r.status}`)
 }
 
@@ -159,6 +160,7 @@ function indexHtml(slides) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(SITE_TITLE)}</title>
+<link rel="icon" type="image/svg+xml" href="${esc(BASE)}favicon.svg">
 <style>
   :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --card:#fff; --line:#e7e5e4; --accent:#4f46e5; }
   @media (prefers-color-scheme: dark) { :root { --bg:#0c0a09; --fg:#f5f5f4; --muted:#a8a29e; --card:#1c1917; --line:#292524; --accent:#a5b4fc; } }
@@ -199,6 +201,7 @@ function notFoundHtml() {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Not found</title>
+<link rel="icon" type="image/svg+xml" href="${esc(BASE)}favicon.svg">
 <script>
 (function () {
   var base = ${JSON.stringify(BASE)};
@@ -233,6 +236,8 @@ function main() {
   log(`base=${BASE}  slides=${ids.join(', ') || '(none)'}`)
   const built = ids.map(buildSlide)
 
+  // Static files for the hub itself (favicon, …) go to the site root.
+  if (existsSync(PUBLIC_DIR)) cpSync(PUBLIC_DIR, DIST, { recursive: true })
   writeFileSync(join(DIST, 'index.html'), indexHtml(built))
   writeFileSync(join(DIST, '404.html'), notFoundHtml())
   writeFileSync(join(DIST, '.nojekyll'), '')
