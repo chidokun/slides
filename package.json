@@ -1,0 +1,13 @@
+{
+  "name": "slides-hub",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "serve": "node scripts/serve.mjs",
+    "update": "git submodule update --init --remote --recursive"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

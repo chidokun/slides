@@ -1,0 +1,75 @@
+name: Build & deploy slides
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      update_submodules:
+        description: Build the latest commit of every slide repo (instead of the pinned submodule commits)
+        type: boolean
+        default: false
+  # Lets a slide repo trigger a rebuild:
+  #   gh api repos/<owner>/<this-repo>/dispatches -f event_type=slides-updated
+  repository_dispatch:
+    types: [slides-updated]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # For private slide repos, add a SUBMODULES_TOKEN secret (PAT with read access).
+          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
+
+      - name: Pull latest slide repos
+        if: github.event_name == 'repository_dispatch' || inputs.update_submodules
+        run: git submodule update --init --remote --recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.local/share/pnpm/store
+            ~/.cache/yarn
+          key: deps-${{ runner.os }}-${{ hashFiles('slides/*/package-lock.json', 'slides/*/pnpm-lock.yaml', 'slides/*/yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
+
+      # base_path is "" on a custom domain or <user>.github.io repo, "/<repo>" on a project site.
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build all slides
+        env:
+          BASE_PATH: ${{ vars.BASE_PATH || format('{0}/', steps.pages.outputs.base_path) }}
+          SITE_TITLE: ${{ vars.SITE_TITLE || 'Slides' }}
+        run: node scripts/build.mjs
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
