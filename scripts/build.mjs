@@ -94,13 +94,18 @@ function spaRestoreScript() {
   return `<script>(function(){var p=new URLSearchParams(location.search).get('__spa');if(p===null)return;var b=location.pathname.replace(/[^/]*$/,'');history.replaceState(null,'',b+p.replace(/^\\//,''))})()</script>`
 }
 
-function injectSpaRestore(slideOut) {
+const faviconLink = () => `<link rel="icon" type="image/svg+xml" href="${esc(BASE)}favicon.svg">`
+
+// Post-process a built slide: restore deep links, and replace Slidev's favicon
+// (its CDN default, or one set in the slide's headmatter) with the hub's shared one.
+function patchSlideHtml(slideOut) {
   for (const f of ['index.html', '404.html']) {
     const p = join(slideOut, f)
     if (!existsSync(p)) continue
-    const html = readFileSync(p, 'utf8')
-    if (html.includes('__spa')) continue
-    writeFileSync(p, html.replace(/<head>/i, m => `${m}${spaRestoreScript()}`))
+    let html = readFileSync(p, 'utf8')
+    html = html.replace(/\s*<link\b[^>]*\brel=["']?(?:shortcut\s+)?icon["']?[^>]*>/gi, '')
+    const inject = (html.includes('__spa') ? '' : spaRestoreScript()) + faviconLink()
+    writeFileSync(p, html.replace(/<head>/i, m => `${m}${inject}`))
   }
 }
 
@@ -134,7 +139,7 @@ function buildSlide(id) {
   const slidev = join(dir, 'node_modules', '.bin', 'slidev')
   if (!existsSync(slidev)) throw new Error(`"${id}": @slidev/cli not found in dependencies`)
   run(slidev, ['build', entry, '--base', base, '--out', out], dir)
-  injectSpaRestore(out)
+  patchSlideHtml(out)
 
   const fm = frontmatter(join(dir, entry))
   return {
